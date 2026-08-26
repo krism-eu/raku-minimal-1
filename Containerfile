@@ -15,13 +15,24 @@ RUN set -eux; \
     if [ -n "$pkgs_to_remove" ]; then \
         echo "Removing packages:$pkgs_to_remove"; \
         dnf remove -y \
+          --exclude=kernel* \
+          --exclude=systemd* \
+          --exclude=grub2* \
+          --exclude=shim* \
+          --exclude=ostree* \
+          --exclude=bootc* \
+          --exclude=selinux* \
+          --exclude=dnf* \
+          --exclude=libdnf* \
+          --exclude=rpm* \
+          --exclude=python3* \
           --setopt=clean_requirements_on_remove=1 \
           --setopt=tsflags=noscripts \
           $pkgs_to_remove || true; \
     else \
         echo "No packages to remove."; \
     fi; \
-    dnf clean all; \
+    dnf clean all || true; \
     rm -rf /var/cache/dnf /tmp/pacchetti-rimossi.txt
 
 CMD ["/sbin/init"]
