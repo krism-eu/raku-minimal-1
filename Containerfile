@@ -1,8 +1,6 @@
-Repository: krism-eu/raku-minimal-1
-Branch: main
-Commit message: Add package-removal Containerfile
-
-File: Containerfile
+# Repository: krism-eu/raku-minimal-1
+# Branch: main
+# Commit message: Add package-removal Containerfile
 
 FROM ghcr.io/rakuos/kde:latest
 
