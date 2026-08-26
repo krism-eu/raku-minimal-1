@@ -1,7 +1,3 @@
-# Repository: krism-eu/raku-minimal-1
-# Branch: main
-# Commit message: Add package-removal Containerfile
-
 FROM quay.io/rakuos/rakuos-kde:latest
 
 COPY pacchetti-rimossi.txt /tmp/pacchetti-rimossi.txt
@@ -18,9 +14,11 @@ RUN set -eux; \
     done < /tmp/pacchetti-rimossi.txt; \
     if [ -n "$pkgs_to_remove" ]; then \
         echo "Removing packages:$pkgs_to_remove"; \
-        dnf remove -y --setopt=clean_requirements_on_remove=1 $pkgs_to_remove; \
+        dnf remove -y --setopt=clean_requirements_on_remove=1 --setopt=tsflags=noscripts $pkgs_to_remove; \
     else \
         echo "No packages to remove."; \
     fi; \
     dnf clean all; \
     rm -rf /var/cache/dnf /tmp/pacchetti-rimossi.txt
+
+CMD ["/sbin/init"]
