@@ -28,7 +28,11 @@ jobs:
 
       - name: Build the image with Podman
         run: |
-          podman build -f Containerfile -t ghcr.io/krism-eu/raku-minimal-1:latest .
+          podman build \
+            -f Containerfile \
+            --squash \
+            -t ghcr.io/krism-eu/raku-minimal-1:latest \
+            .
 
       - name: Push the image to GHCR
         run: |
