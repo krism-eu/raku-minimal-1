@@ -2,7 +2,7 @@
 # Branch: main
 # Commit message: Add package-removal Containerfile
 
-FROM ghcr.io/rakuos/rakuos-kde:staging
+FROM ghcr.io/rakuos/rakuos-kde:latest
 
 COPY pacchetti-rimossi.txt /tmp/pacchetti-rimossi.txt
 
