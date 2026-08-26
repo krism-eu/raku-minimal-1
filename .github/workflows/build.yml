@@ -4,30 +4,32 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Permette di avviare la build manualmente dalla scheda Actions
+  workflow_dispatch:
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # Permessi per pubblicare su GHCR
+      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install podman
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Containerfile
-          push: true
-          tags: ghcr.io/krism-eu/raku-minimal-1:latest
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build the image with Podman
+        run: |
+          podman build -f Containerfile -t ghcr.io/krism-eu/raku-minimal-1:latest .
+
+      - name: Push the image to GHCR
+        run: |
+          podman push ghcr.io/krism-eu/raku-minimal-1:latest
