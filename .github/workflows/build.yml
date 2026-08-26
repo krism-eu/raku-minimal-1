@@ -1,0 +1,33 @@
+name: Build and Publish RakuOS Minimal
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Permette di avviare la build manualmente dalla scheda Actions
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Permessi per pubblicare su GHCR
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Containerfile
+          push: true
+          tags: ghcr.io/krism-eu/raku-minimal-1:latest
