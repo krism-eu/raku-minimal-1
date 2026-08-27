@@ -25,19 +25,19 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Build image (no squash)
+      - name: Build image with Squash
         run: |
-          podman build -f Containerfile -t temp-image:latest .
-
-      - name: Squash image
-        run: |
-          podman image squash temp-image:latest ghcr.io/krism-eu/raku-minimal-1:latest
+          podman build \
+            --squash \
+            -f Containerfile \
+            -t ghcr.io/krism-eu/raku-minimal-1:latest \
+            .
 
       - name: Verify image size and layers
         run: |
           echo "=== Immagine finale ==="
           podman images ghcr.io/krism-eu/raku-minimal-1:latest
-          echo "=== Numero di layer ==="
+          echo "=== Numero di layer (deve essere 1) ==="
           podman inspect ghcr.io/krism-eu/raku-minimal-1:latest --format '{{len .RootFS.Layers}}'
 
       - name: Push image to GHCR
