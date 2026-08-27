@@ -2,8 +2,7 @@ name: Build and Publish RakuOS Minimal
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -26,14 +25,21 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Build the image with Podman
+      - name: Build image (no squash)
         run: |
-          podman build \
-            -f Containerfile \
-            --squash \
-            -t ghcr.io/krism-eu/raku-minimal-1:latest \
-            .
+          podman build -f Containerfile -t temp-image:latest .
 
-      - name: Push the image to GHCR
+      - name: Squash image
+        run: |
+          podman image squash temp-image:latest ghcr.io/krism-eu/raku-minimal-1:latest
+
+      - name: Verify image size and layers
+        run: |
+          echo "=== Immagine finale ==="
+          podman images ghcr.io/krism-eu/raku-minimal-1:latest
+          echo "=== Numero di layer ==="
+          podman inspect ghcr.io/krism-eu/raku-minimal-1:latest --format '{{len .RootFS.Layers}}'
+
+      - name: Push image to GHCR
         run: |
           podman push ghcr.io/krism-eu/raku-minimal-1:latest
