@@ -5,7 +5,22 @@ COPY pacchetti-rimossi.txt /tmp/pacchetti-rimossi.txt
 
 # ============================================================
 # FASE 1
-# Validazione della lista e individuazione dei pacchetti installati
+# Installazione preventiva dei language pack necessari
+# ============================================================
+
+RUN set -eux; \
+    dnf install -y \
+        --setopt=install_weak_deps=False \
+        glibc-langpack-en \
+        glibc-langpack-it; \
+    \
+    rpm -q glibc-langpack-en; \
+    rpm -q glibc-langpack-it
+
+
+# ============================================================
+# FASE 2
+# Validazione della lista e selezione dei pacchetti installati
 # ============================================================
 
 RUN set -eux; \
@@ -17,17 +32,17 @@ RUN set -eux; \
     : > /tmp/pacchetti-da-rimuovere.txt; \
     \
     while IFS= read -r pkg || [ -n "$pkg" ]; do \
-        # Rimuove il carattere CR dei file Windows CRLF
+        # Rimuove eventuali caratteri CR dei file Windows CRLF
         pkg="$(printf '%s' "$pkg" | sed 's/\r$//')"; \
         \
         # Ignora righe vuote e commenti
         case "$pkg" in \
-            ''|'#*') \
+            ''|'#'*) \
                 continue \
                 ;; \
         esac; \
         \
-        # Accetta solamente nomi di pacchetti RPM validi
+        # Accetta solamente nomi di pacchetto RPM validi
         case "$pkg" in \
             *[!A-Za-z0-9._+:-]*) \
                 echo "ERRORE: nome pacchetto non valido: [$pkg]" >&2; \
@@ -36,9 +51,8 @@ RUN set -eux; \
         esac; \
         \
         # ----------------------------------------------------
-        # Pacchetti fondamentali protetti
+        # Protezione dei pacchetti fondamentali del sistema
         # ----------------------------------------------------
-        \
         case "$pkg" in \
             dnf|dnf-*|\
             dnf5|dnf5-*|\
@@ -63,12 +77,11 @@ RUN set -eux; \
         esac; \
         \
         # ----------------------------------------------------
-        # Protezione del kernel reale
+        # Protezione dei componenti effettivi del kernel
         #
         # Il metapacchetto kernel-p03-v2 resta rimovibile.
-        # Vengono invece protetti core e moduli.
+        # I componenti core e modules vengono protetti.
         # ----------------------------------------------------
-        \
         case "$pkg" in \
             kernel-core|\
             kernel-*-core|\
@@ -85,7 +98,7 @@ RUN set -eux; \
                 ;; \
         esac; \
         \
-        # Se il pacchetto è installato, lo aggiunge alla lista
+        # Se installato, aggiunge il pacchetto alla lista finale
         if rpm -q "$pkg" >/dev/null 2>&1; then \
             printf '%s\n' "$pkg" >> /tmp/pacchetti-da-rimuovere.txt; \
             echo "SELECTED: $pkg"; \
@@ -94,18 +107,18 @@ RUN set -eux; \
         fi; \
     done < /tmp/pacchetti-rimossi.txt; \
     \
-    # Elimina duplicati
+    # Elimina i duplicati
     sort -u \
         /tmp/pacchetti-da-rimuovere.txt \
         -o /tmp/pacchetti-da-rimuovere.txt; \
     \
     echo; \
-    echo "Lista finale dei pacchetti selezionati:"; \
+    echo "Lista finale dei pacchetti da rimuovere:"; \
     cat /tmp/pacchetti-da-rimuovere.txt || true
 
 
 # ============================================================
-# FASE 2
+# FASE 3
 # Simulazione della rimozione
 # ============================================================
 
@@ -127,8 +140,8 @@ RUN set -eu; \
 
 
 # ============================================================
-# FASE 3
-# Rimozione effettiva, un pacchetto alla volta
+# FASE 4
+# Rimozione effettiva, senza autoremove
 # ============================================================
 
 RUN set -eu; \
@@ -136,7 +149,7 @@ RUN set -eu; \
         while IFS= read -r pkg || [ -n "$pkg" ]; do \
             echo; \
             echo "================================================"; \
-            echo "Rimozione: $pkg"; \
+            echo "Rimozione del pacchetto: $pkg"; \
             echo "================================================"; \
             \
             logfile="/tmp/dnf-remove.log"; \
@@ -163,18 +176,20 @@ RUN set -eu; \
 
 
 # ============================================================
-# FASE 4
-# Verifica del database RPM dopo le rimozioni
+# FASE 5
+# Verifica del database RPM e dei language pack
 # ============================================================
 
 RUN set -eux; \
     rpm --verifydb; \
-    rpm -qa >/dev/null
+    rpm -qa >/dev/null; \
+    rpm -q glibc-langpack-en; \
+    rpm -q glibc-langpack-it
 
 
 # ============================================================
-# FASE 5
-# Pulizia cache e file temporanei
+# FASE 6
+# Pulizia finale
 # ============================================================
 
 RUN set -eux; \
