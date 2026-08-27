@@ -14,7 +14,14 @@ RUN set -eux; \
     dnf clean all
 
 # ------------------------------------------------------------
-# 2. Selezione dei pacchetti e rimozione unica (veloce e sicura)
+# 2. Rimuove tutte le chiavi GPG (non servono in un'immagine bootc)
+#    Risolve il problema "duplicate with gpg-pubkey" in bootc-image-builder
+# ------------------------------------------------------------
+RUN set -eux; \
+    rpm -qa gpg-pubkey | xargs -r rpm --erase --allmatches || true
+
+# ------------------------------------------------------------
+# 3. Selezione dei pacchetti e rimozione sicura (loop)
 # ------------------------------------------------------------
 RUN set -eux; \
     : > /tmp/pacchetti-da-rimuovere.txt; \
@@ -42,16 +49,21 @@ RUN set -eux; \
     \
     sort -u /tmp/pacchetti-da-rimuovere.txt -o /tmp/pacchetti-da-rimuovere.txt; \
     \
-    # Rimozione in UNICA TRANSAZIONE (velocizza la build da ore a secondi)
+    # Rimozione sicura in loop (si ferma al primo errore)
     if [ -s /tmp/pacchetti-da-rimuovere.txt ]; then \
-        echo "================================================"; \
-        echo "Esecuzione DNF Remove per i pacchetti selezionati"; \
-        echo "================================================"; \
-        dnf remove -y \
-            --no-autoremove \
-            --setopt=clean_requirements_on_remove=False \
-            --setopt=tsflags=noscripts \
-            $(cat /tmp/pacchetti-da-rimuovere.txt | tr '\n' ' ') || true; \
+        while IFS= read -r pkg; do \
+            echo "Rimozione di: $pkg"; \
+            logfile="/tmp/dnf-remove-$pkg.log"; \
+            if dnf remove -y --no-autoremove --setopt=clean_requirements_on_remove=False "$pkg" >"$logfile" 2>&1; then \
+                cat "$logfile"; \
+                echo "OK: $pkg"; \
+                rm -f "$logfile"; \
+            else \
+                cat "$logfile"; \
+                echo "ERRORE durante la rimozione di: $pkg" >&2; \
+                exit 1; \
+            fi; \
+        done < /tmp/pacchetti-da-rimuovere.txt; \
     else \
         echo "Nessun pacchetto da rimuovere."; \
     fi; \
@@ -61,12 +73,10 @@ RUN set -eux; \
     rm -rf /var/cache/dnf /var/cache/yum /tmp/pacchetti-rimossi.txt /tmp/pacchetti-da-rimuovere.txt /tmp/dnf-remove-*.log
 
 # ------------------------------------------------------------
-# 3. Ripristino Database RPM e Verifica finale
+# 4. Verifica finale (senza rebuilddb)
 # ------------------------------------------------------------
 RUN set -eux; \
-    # Ricostruisce il database RPM eliminando voci duplicate o orfane (risolve l'errore GPG di bootc-image-builder)
-    rpm --rebuilddb; \
-    # Verifica che i language pack siano presenti
+    rpm --verifydb; \
     rpm -q glibc-langpack-en; \
     rpm -q glibc-langpack-it
 
