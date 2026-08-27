@@ -16,42 +16,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install Buildah
         run: |
           sudo apt-get update
-          sudo apt-get -y install curl ca-certificates
-
-      - name: Install Podman 5.8.6
-        run: |
-          PODMAN_VERSION="5.8.6"
-          # Scarica il binario statico dal repository ufficiale containers/podman
-          curl -L -o podman.tar.gz "https://github.com/containers/podman/releases/download/v${PODMAN_VERSION}/podman-remote-static-linux_amd64.tar.gz"
-          # Estrai e installa
-          tar -xzf podman.tar.gz
-          sudo mv bin/podman-remote-static-linux_amd64 /usr/local/bin/podman
-          sudo chmod +x /usr/local/bin/podman
-          # Verifica la versione
-          podman --version
+          sudo apt-get -y install buildah
 
       - name: Log in to GitHub Container Registry
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | buildah login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Build image (no squash)
+      - name: Build image with Squash
         run: |
-          podman build -f Containerfile -t temp-image:latest .
-
-      - name: Squash image
-        run: |
-          podman image squash temp-image:latest ghcr.io/krism-eu/raku-minimal-1:latest
+          buildah bud --squash -t ghcr.io/krism-eu/raku-minimal-1:latest -f Containerfile .
 
       - name: Verify image size and layers
         run: |
           echo "=== Immagine finale ==="
-          podman images ghcr.io/krism-eu/raku-minimal-1:latest
+          buildah images ghcr.io/krism-eu/raku-minimal-1:latest
           echo "=== Numero di layer (deve essere 1) ==="
-          podman inspect ghcr.io/krism-eu/raku-minimal-1:latest --format '{{len .RootFS.Layers}}'
+          buildah inspect ghcr.io/krism-eu/raku-minimal-1:latest --format '{{len .RootFS.Layers}}'
 
       - name: Push image to GHCR
         run: |
-          podman push ghcr.io/krism-eu/raku-minimal-1:latest
+          buildah push ghcr.io/krism-eu/raku-minimal-1:latest docker://ghcr.io/krism-eu/raku-minimal-1:latest
