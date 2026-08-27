@@ -1,68 +1,45 @@
-FROM quay.io/rakuos/rakuos-kde:latest
+name: Build and Publish RakuOS Minimal
 
-# Copia la lista dei pacchetti da rimuovere
-COPY pacchetti-rimossi.txt /tmp/pacchetti-rimossi.txt
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
-# ------------------------------------------------------------
-# 1. Installa i language pack e pulisce subito la cache
-# ------------------------------------------------------------
-RUN set -eux; \
-    dnf install -y \
-        --setopt=install_weak_deps=False \
-        glibc-langpack-en \
-        glibc-langpack-it; \
-    dnf clean all
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
-# ------------------------------------------------------------
-# 2. Selezione, rimozione unica e pulizia
-# ------------------------------------------------------------
-RUN set -eux; \
-    : > /tmp/pacchetti-da-rimuovere.txt; \
-    \
-    # Filtra e valida i pacchetti, proteggendo i critici
-    while IFS= read -r pkg || [ -n "$pkg" ]; do \
-        pkg="$(printf '%s' "$pkg" | sed 's/\r$//')"; \
-        case "$pkg" in ''|'#'*) continue ;; esac; \
-        case "$pkg" in *[!A-Za-z0-9._+:-]*) echo "ERRORE: nome non valido: [$pkg]" >&2; exit 1 ;; esac; \
-        case "$pkg" in \
-            dnf|dnf-*|dnf5|dnf5-*|libdnf|libdnf-*|libdnf5|libdnf5-*|rpm|rpm-*|rpm-libs|rpm-plugin-*|python3|python3-*|bash|coreutils|filesystem|systemd|systemd-*|bootc|bootc-*|ostree|ostree-*|rpm-ostree|rpm-ostree-*|dracut|dracut-*|dbus|dbus-*|polkit|polkit-*) \
-                echo "PROTECTED: $pkg"; continue ;; \
-        esac; \
-        case "$pkg" in \
-            kernel-core|kernel-*-core|kernel-modules|kernel-*-modules|kernel-modules-core|kernel-*-modules-core|kernel-modules-extra|kernel-*-modules-extra|kernel-uki|kernel-*-uki) \
-                echo "PROTECTED KERNEL: $pkg"; continue ;; \
-        esac; \
-        if rpm -q "$pkg" >/dev/null 2>&1; then \
-            printf '%s\n' "$pkg" >> /tmp/pacchetti-da-rimuovere.txt; \
-            echo "SELECTED: $pkg"; \
-        else \
-            echo "SKIP: $pkg"; \
-        fi; \
-    done < /tmp/pacchetti-rimossi.txt; \
-    \
-    sort -u /tmp/pacchetti-da-rimuovere.txt -o /tmp/pacchetti-da-rimuovere.txt; \
-    \
-    # Rimozione in UNICA TRANSAZIONE, SENZA mascherare errori
-    if [ -s /tmp/pacchetti-da-rimuovere.txt ]; then \
-        echo "================================================"; \
-        echo "Rimozione dei pacchetti selezionati"; \
-        echo "================================================"; \
-        dnf remove -y \
-            --no-autoremove \
-            --setopt=clean_requirements_on_remove=False \
-            $(cat /tmp/pacchetti-da-rimuovere.txt | tr '\n' ' '); \
-    fi; \
-    \
-    # Pulizia finale nello stesso layer
-    dnf clean all; \
-    rm -rf /var/cache/dnf /var/cache/yum /tmp/pacchetti-rimossi.txt /tmp/pacchetti-da-rimuovere.txt /tmp/dnf-remove-*.log
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-# ------------------------------------------------------------
-# 3. Verifica finale
-# ------------------------------------------------------------
-RUN set -eux; \
-    rpm --verifydb; \
-    rpm -q glibc-langpack-en; \
-    rpm -q glibc-langpack-it
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install podman
 
-CMD ["/sbin/init"]
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build image with Squash
+        run: |
+          podman build \
+            --squash \
+            -f Containerfile \
+            -t ghcr.io/krism-eu/raku-minimal-1:latest \
+            .
+
+      - name: Verify image size and layers
+        run: |
+          echo "=== Immagine finale ==="
+          podman images ghcr.io/krism-eu/raku-minimal-1:latest
+          echo "=== Numero di layer (deve essere 1) ==="
+          podman inspect ghcr.io/krism-eu/raku-minimal-1:latest --format '{{len .RootFS.Layers}}'
+
+      - name: Push image to GHCR
+        run: |
+          podman push ghcr.io/krism-eu/raku-minimal-1:latest
