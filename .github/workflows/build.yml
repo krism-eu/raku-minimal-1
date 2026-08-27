@@ -29,13 +29,6 @@ jobs:
         run: |
           buildah bud --squash -t ghcr.io/krism-eu/raku-minimal-1:latest -f Containerfile .
 
-      - name: Verify image size and layers
-        run: |
-          echo "=== Immagine finale ==="
-          buildah images ghcr.io/krism-eu/raku-minimal-1:latest
-          echo "=== Numero di layer (deve essere 1) ==="
-          buildah inspect --format '{{len .RootFS.Layers}}' ghcr.io/krism-eu/raku-minimal-1:latest
-
       - name: Push image to GHCR
         run: |
           buildah push ghcr.io/krism-eu/raku-minimal-1:latest docker://ghcr.io/krism-eu/raku-minimal-1:latest
