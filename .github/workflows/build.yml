@@ -34,7 +34,7 @@ jobs:
           echo "=== Immagine finale ==="
           buildah images ghcr.io/krism-eu/raku-minimal-1:latest
           echo "=== Numero di layer (deve essere 1) ==="
-          buildah inspect ghcr.io/krism-eu/raku-minimal-1:latest --format '{{len .RootFS.Layers}}'
+          buildah inspect --format '{{len .RootFS.Layers}}' ghcr.io/krism-eu/raku-minimal-1:latest
 
       - name: Push image to GHCR
         run: |
